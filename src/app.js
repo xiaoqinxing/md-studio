@@ -838,7 +838,7 @@ function init() {
   renderNow();
   updateStats();
   ui.stSave.textContent = stored === null ? "示例文档" : "已恢复草稿";
-  $("#verLine").textContent = "md·studio v0.1";
+  $("#verLine").textContent = "md·studio v0.2";
 }
 
 init();
