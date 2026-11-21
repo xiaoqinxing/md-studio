@@ -9,6 +9,7 @@
     "dev": "node build.mjs --watch",
     "test": "node scripts/qa.mjs && node scripts/func.mjs",
     "ci": "node scripts/ci.mjs",
+    "deploy:qdeploy": "node scripts/deploy-qdeploy.mjs",
     "stress": "node scripts/stress.mjs"
   },
   "devDependencies": {

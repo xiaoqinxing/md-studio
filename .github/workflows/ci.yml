@@ -54,6 +54,14 @@ jobs:
         with:
           path: dist
 
+      - name: Upload qdeploy artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qdeploy-html
+          path: dist/index.html
+          retention-days: 1
+
   deploy:
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -65,3 +73,26 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  deploy-qdeploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qdeploy-html
+          path: dist
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Deploy to markdown.li.qinxing.xyz
+        env:
+          QDEPLOY_TOKEN: ${{ secrets.QDEPLOY_TOKEN }}
+        run: |
+          cp dist/index.html index.html
+          node scripts/deploy-qdeploy.mjs

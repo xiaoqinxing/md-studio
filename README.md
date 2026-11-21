@@ -136,12 +136,24 @@ npm run stress    # 大文档压测，SECTIONS=2900 可测 1 MB（需 8765 服�
 | `scripts/qa.mjs` | 持久化、导出 HTML、打印 PDF、文件打开、任务回写 |
 | `scripts/func.mjs` | 无 FSA 降级保存、XSS 净化、快捷键、目录、移动端 |
 | `scripts/stress.mjs` | 大文档加载、编辑器输入延迟、预览渲染耗时 |
+| `scripts/deploy-qdeploy.mjs` | 通过 qdeploy 发布 `markdown.li.qinxing.xyz` |
 
 ## 持续集成与发布
 
 - 每次 push / PR：`npm ci` → 构建 → Chrome 冒烟测试
-- push 到 `main`：自动发布到 GitHub Pages
+- push 到 `main`：
+  - 自动发布到 **GitHub Pages**（镜像）
+  - 自动发布到 **https://markdown.li.qinxing.xyz/**（qdeploy）
 - 工作流：[`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+
+自定义域名部署依赖仓库 Secret：
+
+1. 打开 **Settings → Secrets and variables → Actions → New repository secret**
+2. Name 填 `QDEPLOY_TOKEN`
+3. Value 填 qdeploy 的 Bearer token
+4. 未配置时该步骤会输出 warning 并跳过，不会让整个工作流失败
+
+qdeploy 的 MCP 接口请求体上限约 4 MB，脚本会在超过 4.1 MB 时直接失败，避免悄悄部署失败。
 
 若仓库首次启用 Pages 失败，在 **Settings → Pages → Source** 选择 **GitHub Actions** 后重跑工作流即可。
 
