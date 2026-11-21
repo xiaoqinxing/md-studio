@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2316635a'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+<title>md·studio</title>
+<style id="app-style">/*__APP_CSS__*/</style>
+<style id="katex-style">/*__KATEX_CSS__*/</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand" title="md·studio — 本地 Markdown 工作台"><span class="logo">M</span><span class="brand-text">md<span class="dot">·</span>studio</span></div>
+
+  <div class="doc">
+    <button id="docName" class="doc-name" title="点击重命名">未命名.md</button>
+    <span id="dirty" class="dirty" hidden>未保存</span>
+  </div>
+
+  <div class="actions">
+    <div class="seg" id="modeSeg" role="group" aria-label="视图模式">
+      <button data-mode="split" class="on">分栏</button>
+      <button data-mode="source">源码</button>
+      <button data-mode="read">阅读</button>
+    </div>
+    <button id="btnToc" class="icon" title="目录 (Ctrl+\)" aria-label="目录">☰</button>
+    <button id="btnTheme" class="icon" title="切换主题 (Ctrl+Shift+L)" aria-label="主题">◐</button>
+    <details class="menu" id="menu">
+      <summary class="icon" title="文件与设置" aria-label="菜单">⋯</summary>
+      <div class="menu-body">
+        <button data-act="open">打开文件 <kbd>Ctrl O</kbd></button>
+        <button data-act="save">保存 <kbd>Ctrl S</kbd></button>
+        <button data-act="saveAs">另存为…</button>
+        <hr>
+        <button data-act="exportMd">导出 Markdown</button>
+        <button data-act="exportHtml">导出 HTML（自包含）</button>
+        <button data-act="print">打印 / 导出 PDF <kbd>Ctrl P</kbd></button>
+        <hr>
+        <div class="field">
+          <label for="fontSize">字号 <output id="fontSizeOut">17</output> px</label>
+          <input id="fontSize" type="range" min="14" max="24" step="1" value="17">
+        </div>
+        <div class="field">
+          <label>正文字体</label>
+          <div class="seg small" id="fontSeg">
+            <button data-font="sans" class="on">无衬线</button>
+            <button data-font="serif">衬线</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="measure">行宽 <output id="measureOut">760</output> px</label>
+          <input id="measure" type="range" min="560" max="1100" step="20" value="760">
+        </div>
+        <label class="check"><input type="checkbox" id="rawHtml"> 允许渲染原始 HTML</label>
+        <hr>
+        <div class="about">纯本地运行 · 不联网 · 不上传<br><span id="verLine"></span></div>
+      </div>
+    </details>
+  </div>
+</header>
+
+<div class="app" id="app">
+  <div class="toc-scrim" id="tocScrim"></div>
+  <aside class="toc" id="toc">
+    <div class="toc-head"><span>目录</span><button class="icon sm" id="tocClose" title="收起">×</button></div>
+    <nav class="toc-list" id="tocList"></nav>
+  </aside>
+
+  <main class="panes" id="panes">
+    <section class="pane pane-editor" id="paneEditor">
+      <div class="pane-head"><span>Markdown</span><span class="pane-meta" id="edMeta"></span></div>
+      <div class="cm-host" id="cmHost"></div>
+    </section>
+
+    <div class="gutter" id="gutter" role="separator" aria-orientation="vertical" title="拖拽调整宽度"></div>
+
+    <section class="pane pane-preview" id="panePreview">
+      <div class="pane-head"><span>预览</span><span class="pane-meta" id="pvMeta"></span></div>
+      <div class="preview-scroll" id="previewScroll">
+        <article class="markdown-body" id="preview"></article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="status">
+  <div class="status-left">
+    <span id="stPos">行 1, 列 1</span>
+    <span class="sep"></span>
+    <span id="stWords">0 字</span>
+    <span id="stChars">0 字符</span>
+    <span id="stTime">约 1 分钟</span>
+  </div>
+  <div class="status-right">
+    <span id="stSave" class="chip">已就绪</span>
+    <span class="chip local" title="所有内容仅在本机处理">● 本地运行</span>
+  </div>
+</footer>
+
+<div class="drop" id="drop" hidden><div>松开以打开 Markdown 文件</div></div>
+<div class="toast" id="toast" hidden></div>
+<input type="file" id="fileInput" accept=".md,.markdown,.mdown,.txt,text/markdown,text/plain" hidden>
+
+<script>/*__MERMAID__*/</script>
+<script>/*__APP_JS__*/</script>
+</body>
+</html>
