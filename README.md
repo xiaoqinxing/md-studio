@@ -1,5 +1,9 @@
 # md·studio
 
+[![CI & Deploy](https://github.com/xiaoqinxing/md-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/xiaoqinxing/md-studio/actions/workflows/ci.yml)
+
+在线版：**https://xiaoqinxing.github.io/md-studio/**
+
 纯本地的 Markdown 编辑 / 阅读器。**单文件交付**：`index.html` 双击即用，断网可用，
 正文、草稿、设置都只留在本机，没有任何后端请求。
 
@@ -62,6 +66,21 @@ build.mjs        esbuild + 字体内联
 scripts/qa.mjs   渲染、主题、持久化、导出、打印回归
 scripts/func.mjs 快捷键、XSS、降级保存、移动端
 scripts/stress.mjs 大文档/编辑器延迟压力测试
+scripts/ci.mjs   CI 冒烟（构建产物 + 渲染 + 零外链）
+```
+
+## CI 与自动发布
+
+- 每次 push / PR：安装依赖 → 构建 → 在 Chrome 中跑冒烟测试（`scripts/ci.mjs`）
+- push 到 `main`：把 `index.html` 打包成 Pages 产物并自动发布
+- 线上地址：https://xiaoqinxing.github.io/md-studio/
+- 若仓库首次启用 Pages 失败：Settings → Pages → Source 选 **GitHub Actions**，再重跑工作流
+
+本地复跑 CI：
+
+```bash
+npm run build
+CHROME=/path/to/chrome npm run ci
 ```
 
 ## 已知边界
