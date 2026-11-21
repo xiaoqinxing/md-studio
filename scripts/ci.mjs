@@ -1,4 +1,4 @@
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,11 +28,7 @@ const server = http.createServer((req, res) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 
-const launch = process.env.CHROME
-  ? { executablePath: process.env.CHROME, args: ["--no-sandbox"] }
-  : { channel: "chrome", args: ["--no-sandbox"] };
-
-const browser = await chromium.launch(launch);
+const browser = await launchBrowser();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await ctx.newPage();
 const errors = [];

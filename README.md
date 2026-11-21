@@ -1,97 +1,179 @@
-# md·studio
+<div align="center">
+  <img src="docs/logo.svg" width="76" alt="md·studio logo" />
+  <h1>md·studio</h1>
+  <p><strong>本地优先的 Markdown 工作台</strong><br />单文件交付 · 双击即用 · 零上传</p>
+  <p>
+    <a href="https://github.com/xiaoqinxing/md-studio/actions/workflows/ci.yml"><img src="https://github.com/xiaoqinxing/md-studio/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+    <a href="https://xiaoqinxing.github.io/md-studio/"><img src="https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E4%BD%93%E9%AA%8C-md--studio-16635a?style=flat-square" alt="在线体验" /></a>
+    <img src="https://img.shields.io/badge/%E4%BD%93%E7%A7%AF-4.7%20MB-16635a?style=flat-square" alt="体积 4.7 MB" />
+    <img src="https://img.shields.io/badge/%E5%90%8E%E7%AB%AF-%E6%97%A0-16635a?style=flat-square" alt="无后端" />
+  </p>
+</div>
 
-[![CI & Deploy](https://github.com/xiaoqinxing/md-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/xiaoqinxing/md-studio/actions/workflows/ci.yml)
+![md·studio 分栏编辑界面](docs/preview-light.png)
 
-在线版：**https://xiaoqinxing.github.io/md-studio/**
+写作不应该以「登录」开始。
 
-纯本地的 Markdown 编辑 / 阅读器。**单文件交付**：`index.html` 双击即用，断网可用，
-正文、草稿、设置都只留在本机，没有任何后端请求。
+md·studio 是一个完全运行在浏览器里的 Markdown 工作台：编辑器、实时预览、公式、图表、目录、打印和导出，全部塞进**一个 HTML 文件**。打开即写，断网可用，文档始终留在你自己的机器上。
 
-## 直接使用
-
-```bash
-# 方式一：双击 / 拖进浏览器
-xdg-open index.html
-
-# 方式二：需要「原地打开 / 原地保存」本地文件时，用本地静态服务
-python3 -m http.server 8765
-# 打开 http://127.0.0.1:8765/index.html
-```
-
-Chrome / Edge 在 `file://` 下也可用 File System Access API（已实测）；
-Firefox / Safari 会自动降级为「导入 + 下载导出」。
+- **零上传** —— 没有后端、没有账号、没有遥测，DevTools 里看不到任何出站请求
+- **零部署** —— 构建产物是一个 4.7 MB 的 `index.html`，拷到 U 盘也能用
+- **不将就** —— CodeMirror 6 编辑体验、KaTeX、Mermaid、GFM、自包含导出、A4 打印
 
 ## 功能
 
-- 三种视图：分栏实时预览 / 全宽源码 / 纯阅读，`Ctrl+Enter` 循环切换
-- GFM：表格、任务列表（可点击回写源码）、删除线、自动链接、脚注
-- KaTeX 公式（`$...$`、`$$...$$`）与 Mermaid 图表，主题切换自动重绘
-- 代码高亮、语言标签、复制按钮；支持未知语言降级
-- 目录大纲：随滚动高亮，窄屏为抽屉
-- 文件：拖拽 / 打开 / 保存 / 另存为；导出 `.md` 与自包含 `.html`
-- 自动保存草稿与视图设置；未保存时关闭页面会提醒
-- 打印 / PDF：强制浅色、标题分页、图表与代码块不跨页
-- 亮 / 暗 / 跟随系统；字号、行宽、正文衬线/无衬线可调
-- 所有渲染结果经 DOMPurify 净化；原始 HTML 默认关闭
+| 能力 | 说明 |
+| --- | --- |
+| **三种视图** | 分栏实时预览 / 全宽源码 / 纯阅读，`Ctrl+Enter` 循环切换，中缝可拖拽 |
+| **Markdown** | GFM 表格、任务列表（点击回写源码）、删除线、脚注、自动链接 |
+| **公式与图表** | KaTeX 行内 / 块级公式；Mermaid 流程图、时序图等，切换主题自动重绘 |
+| **代码** | 按语言高亮、语言标签、一键复制，未知语言自动降级 |
+| **阅读体验** | 目录大纲随滚动高亮、字数统计、阅读时长、字号 / 行宽 / 衬线字体可调 |
+| **本地文件** | 拖拽打开；Chromium 原地读写；导出 `.md` 与自包含 `.html` |
+| **自动保存** | 正文、光标位置、视图设置写入 localStorage，刷新恢复；关闭前提醒 |
+| **打印 / PDF** | 强制浅色、标题分页、图表与代码块不跨页，公式字体离线可用 |
+| **安全** | 原始 HTML 默认关闭；所有渲染经 DOMPurify 净化；外链 `noopener` |
+
+## 界面
+
+深色模式下，公式、图表、代码高亮与目录会一起换色：
+
+[![深色界面](docs/preview-dark.png)](docs/preview-dark.png)
+
+<p align="center">
+  <img src="docs/preview-mobile.png" width="300" alt="移动端界面" />
+  <br />
+  <sub>窄屏自动切换为上下分栏，目录变为抽屉</sub>
+</p>
+
+## 快速开始
+
+### 在线体验
+
+**https://xiaoqinxing.github.io/md-studio/**
+
+纯前端页面，打开就能用，同样不会上传任何内容。
+
+### 使用单文件
+
+下载仓库里的 [`index.html`](https://github.com/xiaoqinxing/md-studio/blob/main/index.html)，双击打开即可。
+
+需要「原地打开 / 原地保存」本地文件时，用任意静态服务器打开：
+
+```bash
+python3 -m http.server 8765
+# 浏览器访问 http://127.0.0.1:8765/index.html
+```
+
+### 从源码构建
+
+```bash
+git clone https://github.com/xiaoqinxing/md-studio.git
+cd md-studio
+npm ci
+npm run build      # 生成单文件 index.html
+npm run dev        # 监听 src/，改动自动重建
+```
 
 ## 快捷键
 
-| 快捷键 | 动作 |
-| --- | --- |
-| `Ctrl/Cmd+S` | 保存 |
-| `Ctrl/Cmd+O` | 打开文件 |
-| `Ctrl/Cmd+F` | 在源码中查找 |
-| `Ctrl/Cmd+B` / `I` / `K` / `E` | 粗体 / 斜体 / 链接 / 行内代码 |
-| `Ctrl/Cmd+Enter` | 切换视图 |
-| `Ctrl/Cmd+Shift+L` | 切换主题 |
-| `Ctrl/Cmd+\` | 收起 / 展开目录 |
+| 快捷键 | 动作 | 快捷键 | 动作 |
+| --- | --- | --- | --- |
+| `Ctrl/Cmd+S` | 保存 | `Ctrl/Cmd+O` | 打开文件 |
+| `Ctrl/Cmd+F` | 源码内查找 | `Ctrl/Cmd+Enter` | 切换视图 |
+| `Ctrl/Cmd+B` | 粗体 | `Ctrl/Cmd+I` | 斜体 |
+| `Ctrl/Cmd+K` | 链接 | `Ctrl/Cmd+E` | 行内代码 |
+| `Ctrl/Cmd+Shift+L` | 切换主题 | `Ctrl/Cmd+\` | 收起 / 展开目录 |
 
-## 开发
-
-```bash
-npm install
-npm run build     # 生成 index.html（内联 JS/CSS/KaTeX 字体）
-npm run dev       # 监听 src/ 自动重建
-```
-
-结构：
+## 实现
 
 ```text
-src/app.js       视图、文件、持久化、导出、事件
-src/editor.js    CodeMirror 6 编辑器与语法高亮
-src/markdown.js  markdown-it / KaTeX / Mermaid / 净化
-src/styles.css   全部样式（含打印）
-src/index.html   模板，构建时注入依赖
-build.mjs        esbuild + 字体内联
-scripts/qa.mjs   渲染、主题、持久化、导出、打印回归
-scripts/func.mjs 快捷键、XSS、降级保存、移动端
-scripts/stress.mjs 大文档/编辑器延迟压力测试
-scripts/ci.mjs   CI 冒烟（构建产物 + 渲染 + 零外链）
+Markdown 文本
+   │  CodeMirror 6（编辑 / 高亮 / 搜索 / 快捷键）
+   ▼
+markdown-it ── GFM · 脚注 · 任务列表 · 标题锚点
+   │  KaTeX · Mermaid · highlight.js
+   ▼
+DOMPurify ── 安全 HTML ── 预览 / 导出 / 打印
 ```
 
-## CI 与自动发布
+| 层 | 选型 |
+| --- | --- |
+| 编辑器 | [CodeMirror 6](https://codemirror.net/)（自定义 Markdown 高亮主题） |
+| 渲染 | [markdown-it](https://github.com/markdown-it/markdown-it) + footnote / anchor 插件 |
+| 数学 | [KaTeX](https://katex.org/)，woff2 字体内联进 HTML |
+| 图表 | [Mermaid 10](https://mermaid.js.org/)，按主题缓存 SVG |
+| 净化 | [DOMPurify](https://github.com/cure53/DOMPurify) |
+| 构建 | [esbuild](https://esbuild.github.io/) → 单个 `index.html` |
 
-- 每次 push / PR：安装依赖 → 构建 → 在 Chrome 中跑冒烟测试（`scripts/ci.mjs`）
-- push 到 `main`：把 `index.html` 打包成 Pages 产物并自动发布
-- 线上地址：https://xiaoqinxing.github.io/md-studio/
-- 若仓库首次启用 Pages 失败：Settings → Pages → Source 选 **GitHub Actions**，再重跑工作流
+`npm run build` 会做四件事：打包应用与依赖、把 KaTeX 字体转成 base64、内联 Mermaid UMD、注入 HTML 模板。运行时**没有任何 CDN 请求**。
 
-本地复跑 CI：
+## 隐私与安全
+
+- 全站零网络请求；CI 会断言除页面自身与 `data:` / `blob:` 外没有出站流量
+- 原始 HTML 默认关闭；开启后仍会经过 DOMPurify，事件属性与脚本会被剥离
+- 外链统一加 `target="_blank" rel="noopener noreferrer"`
+- 本地文件通过 File System Access API 直接读写，不经过任何服务器
+- 草稿与设置存在浏览器 localStorage，按站点隔离
+
+## 开发与测试
 
 ```bash
-npm run build
-CHROME=/path/to/chrome npm run ci
+npm run build     # 构建单文件产物
+npm run dev       # 监听构建
+npm run ci        # 构建产物 + Chrome 冒烟测试（自带静态服务器）
+npm test          # 渲染 / 交互 / XSS / 导出 / 移动端回归（需先起 8765 服务）
+npm run stress    # 大文档压测，SECTIONS=2900 可测 1 MB（需 8765 服务）
 ```
+
+脚本会自动使用本机缓存的 Playwright Chromium；也可以通过 `CHROME=/path/to/chrome` 指定浏览器。
+
+| 脚本 | 覆盖内容 |
+| --- | --- |
+| `scripts/ci.mjs` | 产物完整性、首屏、TOC、公式、图表、主题、实时编辑、零外链 |
+| `scripts/qa.mjs` | 持久化、导出 HTML、打印 PDF、文件打开、任务回写 |
+| `scripts/func.mjs` | 无 FSA 降级保存、XSS 净化、快捷键、目录、移动端 |
+| `scripts/stress.mjs` | 大文档加载、编辑器输入延迟、预览渲染耗时 |
+
+## 持续集成与发布
+
+- 每次 push / PR：`npm ci` → 构建 → Chrome 冒烟测试
+- push 到 `main`：自动发布到 GitHub Pages
+- 工作流：[`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+
+若仓库首次启用 Pages 失败，在 **Settings → Pages → Source** 选择 **GitHub Actions** 后重跑工作流即可。
+
+## 性能
+
+本机（Chromium，1440×900）实测：
+
+| 场景 | 结果 |
+| --- | --- |
+| 145 KB / 420 节文档 | 打开约 0.7 s，编辑输入延迟约 28 ms |
+| 1 MB / 2900 节文档 | 输入延迟约 40 ms，预览渲染约 0.85 s，刷新自动延后 |
+
+超过 120 KB 的文档会主动延后预览刷新，优先保证输入跟手；超大文档建议直接保存为文件，而不是依赖 localStorage 草稿。
 
 ## 已知边界
 
-- 真·所见即所得（Typora 式）不在 v1 范围：Markdown 源码始终是唯一真源。
-- 大文档（>120 KB）会延后预览刷新，编辑输入不受影响；1 MB 文档首次渲染约 1 秒、预览刷新数秒。
-- 自动保存使用 localStorage（约 5 MB 配额）；超大文档建议直接保存到文件。
-- 图片目前只支持 URL / base64，未做粘贴自动内嵌。
-- 导出 HTML 保留当前主题与字体，KaTeX 字体内联，可离线打开或打印。
+- 暂不支持 Typora 式所见即所得，Markdown 源码始终是唯一真源
+- 图片支持 URL / base64，暂未做粘贴自动内嵌
+- 自动保存受 localStorage 约 5 MB 配额限制
+- 原地读写依赖 File System Access API，Firefox / Safari 降级为导入 + 下载
 
-## 隐私
+## Roadmap
 
-无网络请求、无遥测、无账号。DevTools 的 Network 面板可以直接验证：
-除页面自身与 `data:`/`blob:` 外没有出站流量。
+- [x] 单文件离线交付、CI、GitHub Pages 自动发布
+- [ ] Milkdown 所见即所得模式
+- [ ] 截图粘贴自动内嵌
+- [ ] 多文档库与全文搜索
+- [ ] 导出 Word / EPUB
+
+## 致谢
+
+感谢 [CodeMirror](https://codemirror.net/)、[markdown-it](https://github.com/markdown-it/markdown-it)、[KaTeX](https://katex.org/)、[Mermaid](https://mermaid.js.org/)、[highlight.js](https://highlightjs.org/) 与 [DOMPurify](https://github.com/cure53/DOMPurify) —— 没有这些开源项目，就没有这个单文件。
+
+---
+
+<p align="center"><sub>为写作而生，不为注册而生。</sub></p>
+

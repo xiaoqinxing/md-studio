@@ -1,12 +1,10 @@
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
-const exe = `${os.homedir()}/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome`;
 const OUT = "/tmp/opencode";
 
-const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
+const browser = await launchBrowser();
 
 // 1) file:// 可用性
 {

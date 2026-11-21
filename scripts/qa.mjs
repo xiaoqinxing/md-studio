@@ -1,15 +1,11 @@
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 const BASE = process.env.BASE || "http://127.0.0.1:8765/index.html";
 const OUT = "/tmp/opencode";
-const exe =
-  process.env.CHROME ||
-  `${os.homedir()}/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome`;
 
-const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
+const browser = await launchBrowser();
 const ctx = await browser.newContext({
   viewport: { width: 1440, height: 900 },
   colorScheme: "light",

@@ -1,11 +1,9 @@
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import fs from "node:fs";
-import os from "node:os";
 
-const exe = `${os.homedir()}/.cache/ms-playwright/chromium-1255/chrome-linux64/chrome`;
 const BASE = "http://127.0.0.1:8765/index.html";
 const OUT = "/tmp/opencode";
-const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
+const browser = await launchBrowser();
 const results = [];
 const check = (name, ok, extra = {}) => results.push({ name, ok, ...extra });
 
