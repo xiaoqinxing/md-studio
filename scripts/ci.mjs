@@ -13,7 +13,7 @@ if (!fs.existsSync(artifact)) {
 const html = fs.readFileSync(artifact, "utf8");
 const size = Buffer.byteLength(html);
 if (size < 1_000_000) fail(`产物过小：${size} bytes`);
-if (/__APP_(CSS|JS)__|__KATEX_CSS__|__MERMAID__/.test(html)) fail("产物中仍有未替换的构建占位符");
+if (/__APP_(CSS|JS)__|__KATEX_CSS__|__MERMAID_GZ__/.test(html)) fail("产物中仍有未替换的构建占位符");
 
 const server = http.createServer((req, res) => {
   const url = (req.url || "/").split("?")[0];

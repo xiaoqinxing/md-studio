@@ -455,6 +455,8 @@ body[data-font="serif"] .markdown-body { font-family: var(--font-read); }
 .markdown-body .mermaid-block { margin: 1.4em 0; text-align: center; }
 .markdown-body .mermaid-block svg { max-width: 100%; height: auto; }
 .markdown-body .mermaid-src { display: none; }
+html.no-mermaid .mermaid-src { display: block; }
+html.no-mermaid .mermaid-out { display: none; }
 .markdown-body .mermaid-err { text-align: left; }
 .markdown-body .mermaid-err pre { display: block; }
 .markdown-body .task-list-item { list-style: none; margin-left: -1.2em; }

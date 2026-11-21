@@ -769,6 +769,12 @@ function wireEvents() {
   matchMedia("(max-width: 980px)").addEventListener("change", (e) => {
     if (e.matches) toggleToc(false, false);
   });
+
+  window.addEventListener("mermaid-ready", () => {
+    if (!editor) return;
+    applyTheme(false);
+    scheduleRender({ force: true, immediate: true });
+  });
 }
 
 /* ---------- 启动 ---------- */

@@ -4,8 +4,8 @@
   <p><strong>本地优先的 Markdown 工作台</strong><br />单文件交付 · 双击即用 · 零上传</p>
   <p>
     <a href="https://github.com/xiaoqinxing/md-studio/actions/workflows/ci.yml"><img src="https://github.com/xiaoqinxing/md-studio/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-    <a href="https://xiaoqinxing.github.io/md-studio/"><img src="https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E4%BD%93%E9%AA%8C-md--studio-16635a?style=flat-square" alt="在线体验" /></a>
-    <img src="https://img.shields.io/badge/%E4%BD%93%E7%A7%AF-4.7%20MB-16635a?style=flat-square" alt="体积 4.7 MB" />
+    <a href="https://markdown.li.qinxing.xyz/"><img src="https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E4%BD%93%E9%AA%8C-md--studio-16635a?style=flat-square" alt="在线体验" /></a>
+    <img src="https://img.shields.io/badge/%E4%BD%93%E7%A7%AF-2.8%20MB-16635a?style=flat-square" alt="体积 2.8 MB" />
     <img src="https://img.shields.io/badge/%E5%90%8E%E7%AB%AF-%E6%97%A0-16635a?style=flat-square" alt="无后端" />
   </p>
 </div>
@@ -17,7 +17,7 @@
 md·studio 是一个完全运行在浏览器里的 Markdown 工作台：编辑器、实时预览、公式、图表、目录、打印和导出，全部塞进**一个 HTML 文件**。打开即写，断网可用，文档始终留在你自己的机器上。
 
 - **零上传** —— 没有后端、没有账号、没有遥测，DevTools 里看不到任何出站请求
-- **零部署** —— 构建产物是一个 4.7 MB 的 `index.html`，拷到 U 盘也能用
+- **零部署** —— 构建产物是一个 2.8 MB 的 `index.html`，拷到 U 盘也能用
 - **不将就** —— CodeMirror 6 编辑体验、KaTeX、Mermaid、GFM、自包含导出、A4 打印
 
 ## 功能
@@ -50,9 +50,11 @@ md·studio 是一个完全运行在浏览器里的 Markdown 工作台：编辑�
 
 ### 在线体验
 
-**https://xiaoqinxing.github.io/md-studio/**
+**https://markdown.li.qinxing.xyz/**
 
 纯前端页面，打开就能用，同样不会上传任何内容。
+
+GitHub Pages 镜像：https://xiaoqinxing.github.io/md-studio/
 
 ### 使用单文件
 
@@ -106,7 +108,7 @@ DOMPurify ── 安全 HTML ── 预览 / 导出 / 打印
 | 净化 | [DOMPurify](https://github.com/cure53/DOMPurify) |
 | 构建 | [esbuild](https://esbuild.github.io/) → 单个 `index.html` |
 
-`npm run build` 会做四件事：打包应用与依赖、把 KaTeX 字体转成 base64、内联 Mermaid UMD、注入 HTML 模板。运行时**没有任何 CDN 请求**。
+`npm run build` 会做四件事：打包应用与依赖、把 KaTeX 字体转成 base64、把 Mermaid 压缩后内嵌（浏览器端解压）、注入 HTML 模板。运行时**没有任何 CDN 请求**。
 
 ## 隐私与安全
 
@@ -159,6 +161,7 @@ npm run stress    # 大文档压测，SECTIONS=2900 可测 1 MB（需 8765 服�
 - 暂不支持 Typora 式所见即所得，Markdown 源码始终是唯一真源
 - 图片支持 URL / base64，暂未做粘贴自动内嵌
 - 自动保存受 localStorage 约 5 MB 配额限制
+- Mermaid 以 gzip + base64 内嵌，运行时用 `DecompressionStream` 解压（Chrome 80+ / Safari 16.4+ / Firefox 113+）；不支持时降级显示图表源码
 - 原地读写依赖 File System Access API，Firefox / Safari 降级为导入 + 下载
 
 ## Roadmap

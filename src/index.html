@@ -102,7 +102,34 @@
 <div class="toast" id="toast" hidden></div>
 <input type="file" id="fileInput" accept=".md,.markdown,.mdown,.txt,text/markdown,text/plain" hidden>
 
-<script>/*__MERMAID__*/</script>
+<script type="application/octet-stream" id="mermaid-gz">/*__MERMAID_GZ__*/</script>
+<script>
+(function () {
+  "use strict";
+  var el = document.getElementById("mermaid-gz");
+  if (!el || !window.DecompressionStream) {
+    document.documentElement.classList.add("no-mermaid");
+    return;
+  }
+  var b64 = el.textContent.replace(/\s+/g, "");
+  var bin = atob(b64);
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip")))
+    .text()
+    .then(function (code) {
+      var s = document.createElement("script");
+      s.textContent = code;
+      document.head.appendChild(s);
+      window.__mermaidReady = true;
+      window.dispatchEvent(new Event("mermaid-ready"));
+    })
+    .catch(function (err) {
+      console.error("Mermaid 解压失败", err);
+      document.documentElement.classList.add("no-mermaid");
+    });
+})();
+</script>
 <script>/*__APP_JS__*/</script>
 </body>
 </html>

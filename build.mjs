@@ -2,6 +2,7 @@ import { build } from "esbuild";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -48,12 +49,15 @@ async function run() {
   ]);
 
   const katexCss = inlineFonts(katexCssRaw, p("node_modules/katex/dist"));
-  const mm = mermaid.replace(/<\/script/gi, "<\\/script");
+  // Mermaid 占 2.7 MB：gzip + base64 后约 1 MB，运行时解压，避免整包解析
+  const mermaidGz = zlib
+    .gzipSync(Buffer.from(mermaid), { level: 9 })
+    .toString("base64");
 
   const html = tpl
     .replace("/*__APP_CSS__*/", () => css)
     .replace("/*__KATEX_CSS__*/", () => katexCss)
-    .replace("/*__MERMAID__*/", () => mm)
+    .replace("/*__MERMAID_GZ__*/", () => mermaidGz)
     .replace("/*__APP_JS__*/", () => js);
 
   await fsp.writeFile(p("index.html"), html);
