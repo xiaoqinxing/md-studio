@@ -1,15 +1,23 @@
 import fs from "node:fs";
 
-const ENDPOINT = process.env.QDEPLOY_URL || "https://deploy.li.qinxing.xyz/mcp";
+import { Client, ClientError } from "../tools/qdeploy/src/client.mjs";
+import { deployPath, printDeployResult } from "../tools/qdeploy/src/deploy.mjs";
+
+const ENDPOINT = (process.env.QDEPLOY_URL || "https://deploy.li.qinxing.xyz").replace(
+  /\/mcp\/?$/,
+  "",
+);
+const BASE_DOMAIN = process.env.QDEPLOY_BASE_DOMAIN || "li.qinxing.xyz";
 const TOKEN = (process.env.QDEPLOY_TOKEN || "")
   .trim()
   .replace(/^Bearer\s+/i, "")
   .trim();
 const SITE = process.env.QDEPLOY_SITE || "md-studio";
 const DOMAIN = process.env.QDEPLOY_DOMAIN || "markdown.li.qinxing.xyz";
+const SOURCE = "index.html";
 
 if (!TOKEN) {
-  console.log("::warning::QDEPLOY_TOKEN 未配置，跳过自定义域名部署");
+  console.log("::warning::QDEPLOY_TOKEN 未配置，跳过 qdeploy 部署");
   process.exit(0);
 }
 if (!/^[a-f0-9]{64}$/i.test(TOKEN)) {
@@ -18,132 +26,54 @@ if (!/^[a-f0-9]{64}$/i.test(TOKEN)) {
   );
   process.exit(1);
 }
+if (!fs.existsSync(SOURCE)) {
+  console.error(`::error::找不到部署文件 ${SOURCE}`);
+  process.exit(1);
+}
 
-async function post(body, headers) {
-  let lastErr;
+const client = new Client(ENDPOINT, TOKEN);
+const flags = {
+  name: SITE,
+  domain: DOMAIN,
+  "no-verify": true,
+};
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function deployOnce() {
+  let lastError;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(ENDPOINT, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(180_000),
-      });
-      return res;
-    } catch (e) {
-      lastErr = e;
-      if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 2500));
+      return await deployPath(client, SOURCE, flags, BASE_DOMAIN);
+    } catch (err) {
+      lastError = err;
+      const retryable = !(err instanceof ClientError) || err.status >= 500;
+      if (!retryable || attempt === 3) break;
+      console.log(
+        `::warning::qdeploy 第 ${attempt} 次部署失败，准备重试：${String(err.message || err).slice(0, 200)}`,
+      );
+      await delay(attempt * 2500);
     }
   }
-  const cause = lastErr?.cause?.code || lastErr?.cause?.message || "";
-  throw new Error(`无法连接 qdeploy${cause ? `（${cause}）` : ""}`);
+  throw lastError;
 }
 
-async function call(body, sessionId, { expect = true } = {}) {
-  const headers = {
-    "content-type": "application/json",
-    accept: "application/json, text/event-stream",
-    authorization: `Bearer ${TOKEN}`,
-  };
-  if (sessionId) headers["mcp-session-id"] = sessionId;
+try {
+  const result = await deployOnce();
+  printDeployResult(result);
 
-  const res = await post(body, headers);
-  const sid = res.headers.get("mcp-session-id") || sessionId;
-  const text = await res.text();
-  if (res.status === 401) throw new Error("QDEPLOY_TOKEN 被 qdeploy 拒绝（401）");
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
-  if (!expect) return { sid };
-
-  const messages = [];
-  let buf = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (line.startsWith("data:")) buf.push(line.slice(5).trimStart());
-    else if (!line && buf.length) {
-      messages.push(buf.join("\n"));
-      buf = [];
-    }
-  }
-  if (buf.length) messages.push(buf.join("\n"));
-
-  const payloads = messages
-    .map((m) => {
-      try {
-        return JSON.parse(m);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
-
-  if (!payloads.length) throw new Error(`无法解析 MCP 响应：${text.slice(0, 200)}`);
-  const payload = payloads.find((p) => p.id === body.id) || payloads[payloads.length - 1];
-  if (payload.error) throw new Error(`MCP 错误：${JSON.stringify(payload.error).slice(0, 300)}`);
-  return { payload, sid };
-}
-
-async function main() {
-  const html = fs.readFileSync("index.html", "utf8");
-  const size = Buffer.byteLength(html);
-  if (size > 4_100_000) {
-    throw new Error(
-      `index.html 为 ${(size / 1024 / 1024).toFixed(2)} MB，超过 qdeploy 约 4 MB 的请求体上限`,
-    );
-  }
-
-  const init = await call({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
-      protocolVersion: "2024-11-05",
-      capabilities: {},
-      clientInfo: { name: "md-studio-ci", version: "0.2.0" },
-    },
-  });
-  const sid = init.sid;
-  if (!sid) throw new Error("MCP 未返回 session id");
-
-  await call({ jsonrpc: "2.0", method: "notifications/initialized" }, sid, { expect: false });
-
-  const res = await call(
-    {
-      jsonrpc: "2.0",
-      id: 2,
-      method: "tools/call",
-      params: {
-        name: "deploy_files",
-        arguments: {
-          files: [{ path: "index.html", content: html }],
-          name: SITE,
-          domain: DOMAIN,
-          spa: false,
-        },
-      },
-    },
-    sid,
-  );
-
-  const result = res.payload.result;
-  if (!result) throw new Error("MCP 未返回部署结果");
-  if (result.isError) throw new Error(result.content?.[0]?.text || "部署失败");
-
-  const raw = result.content?.find((c) => c.type === "text")?.text || "{}";
-  let data = {};
-  try {
-    data = JSON.parse(raw);
-  } catch {}
-  if (data.ok === false) throw new Error(raw);
-
-  const line = `已部署 ${data.name || SITE} -> ${data.url || "https://" + DOMAIN}  ` +
-    `${((data.bytes || size) / 1024 / 1024).toFixed(2)} MB  release=${data.release || "?"}`;
-  console.log(line);
+  const size = `${((Number(result.bytes) || 0) / 1024 / 1024).toFixed(2)} MB`;
+  const line =
+    result.changed === false
+      ? `已确认 ${result.name} 内容未变化 -> ${result.url}  release=${result.release || "?"}`
+      : `已部署 ${result.name} -> ${result.url}  ${size}  release=${result.release || "?"}`;
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### qdeploy\n\n\`${line}\`\n`);
   }
-}
-
-main().catch((err) => {
-  const msg = String(err?.message || err).replace(/\s+/g, " ").slice(0, 400);
-  console.error(`::error::qdeploy 部署失败：${msg}`);
+} catch (err) {
+  const message = String(err?.message || err).replace(/\s+/g, " ").slice(0, 400);
+  console.error(`::error::qdeploy 部署失败：${message}`);
   process.exit(1);
-});
+}

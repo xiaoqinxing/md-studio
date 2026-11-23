@@ -1,0 +1,17 @@
+{
+  "name": "qdeploy-cli",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "qdeploy-compatible static site deploy CLI (HTTP only)",
+  "bin": {
+    "qdeploy": "bin/qdeploy.mjs",
+    "deploy": "bin/qdeploy.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
