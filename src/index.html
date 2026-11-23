@@ -24,12 +24,17 @@
       <button data-mode="source">源码</button>
       <button data-mode="read">阅读</button>
     </div>
-    <button id="btnToc" class="icon" title="目录 (Ctrl+\)" aria-label="目录">☰</button>
+    <button id="btnFolder" class="icon" title="打开文件夹 (Ctrl+Shift+O)" aria-label="打开文件夹">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    </button>
+    <button id="btnToc" class="icon" title="侧栏 (Ctrl+\)" aria-label="侧栏">☰</button>
     <button id="btnTheme" class="icon" title="切换主题 (Ctrl+Shift+L)" aria-label="主题">◐</button>
     <details class="menu" id="menu">
       <summary class="icon" title="文件与设置" aria-label="菜单">⋯</summary>
       <div class="menu-body">
         <button data-act="open">打开文件 <kbd>Ctrl O</kbd></button>
+        <button data-act="openFolder">打开文件夹… <kbd>Ctrl ⇧ O</kbd></button>
+        <button data-act="importFolder">导入文件夹（兼容模式）</button>
         <button data-act="save">保存 <kbd>Ctrl S</kbd></button>
         <button data-act="saveAs">另存为…</button>
         <hr>
@@ -63,8 +68,33 @@
 <div class="app" id="app">
   <div class="toc-scrim" id="tocScrim"></div>
   <aside class="toc" id="toc">
-    <div class="toc-head"><span>目录</span><button class="icon sm" id="tocClose" title="收起">×</button></div>
-    <nav class="toc-list" id="tocList"></nav>
+    <div class="side-head">
+      <div class="side-tabs" id="sideTabs" role="tablist" aria-label="侧栏内容">
+        <button data-side="files" role="tab" aria-controls="sideFiles" aria-selected="false">文件</button>
+        <button data-side="outline" role="tab" aria-controls="sideOutline" aria-selected="true" class="on">大纲</button>
+      </div>
+      <button class="icon sm" id="tocClose" title="收起" aria-label="收起侧栏">×</button>
+    </div>
+    <section class="side-pane side-files" id="sideFiles" role="tabpanel" aria-label="文件" hidden>
+      <div class="folder-bar">
+        <span class="folder-name" id="folderName" title="尚未打开文件夹">未打开文件夹</span>
+        <div class="folder-tools">
+          <button class="icon sm" id="btnRefreshFolder" title="刷新文件列表" aria-label="刷新文件列表" hidden>⟳</button>
+          <button class="icon sm" id="btnOpenFolder" title="打开文件夹" aria-label="打开文件夹">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          </button>
+        </div>
+      </div>
+      <nav class="file-tree" id="fileTree" aria-label="Markdown 文件">
+        <div class="tree-empty">
+          <p>打开文件夹后，这里会列出所有 Markdown 文件。</p>
+          <button class="tree-cta" type="button" data-act="pick-folder">打开文件夹</button>
+        </div>
+      </nav>
+    </section>
+    <section class="side-pane side-outline" id="sideOutline" role="tabpanel" aria-label="大纲">
+      <nav class="toc-list" id="tocList"></nav>
+    </section>
   </aside>
 
   <main class="panes" id="panes">
@@ -98,9 +128,10 @@
   </div>
 </footer>
 
-<div class="drop" id="drop" hidden><div>松开以打开 Markdown 文件</div></div>
+<div class="drop" id="drop" hidden><div>松开以打开 Markdown 文件或文件夹</div></div>
 <div class="toast" id="toast" hidden></div>
 <input type="file" id="fileInput" accept=".md,.markdown,.mdown,.txt,text/markdown,text/plain" hidden>
+<input type="file" id="dirInput" webkitdirectory directory multiple hidden>
 
 <script type="application/octet-stream" id="mermaid-gz">/*__MERMAID_GZ__*/</script>
 <script>

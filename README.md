@@ -30,6 +30,7 @@ md·studio 是一个完全运行在浏览器里的 Markdown 工作台：编辑�
 | **代码** | 按语言高亮、语言标签、一键复制，未知语言自动降级 |
 | **阅读体验** | 目录大纲随滚动高亮、字数统计、阅读时长、字号 / 行宽 / 衬线字体可调 |
 | **本地文件** | 拖拽打开；Chromium 原地读写；导出 `.md` 与自包含 `.html` |
+| **文件夹工作区** | 打开整个文件夹，递归列出全部 Markdown；树形目录可展开，点击切换文件并原地保存 |
 | **自动保存** | 正文、光标位置、视图设置写入 localStorage，刷新恢复；关闭前提醒 |
 | **打印 / PDF** | 强制浅色、标题分页、图表与代码块不跨页，公式字体离线可用 |
 | **安全** | 原始 HTML 默认关闭；所有渲染经 DOMPurify 净化；外链 `noopener` |
@@ -85,7 +86,8 @@ npm run dev        # 监听 src/，改动自动重建
 | `Ctrl/Cmd+F` | 源码内查找 | `Ctrl/Cmd+Enter` | 切换视图 |
 | `Ctrl/Cmd+B` | 粗体 | `Ctrl/Cmd+I` | 斜体 |
 | `Ctrl/Cmd+K` | 链接 | `Ctrl/Cmd+E` | 行内代码 |
-| `Ctrl/Cmd+Shift+L` | 切换主题 | `Ctrl/Cmd+\` | 收起 / 展开目录 |
+| `Ctrl/Cmd+Shift+O` | 打开文件夹 | `Ctrl/Cmd+Shift+L` | 切换主题 |
+| `Ctrl/Cmd+\` | 收起 / 展开侧栏 | | |
 
 ## 实现
 
@@ -175,13 +177,16 @@ qdeploy 的 MCP 接口请求体上限约 4 MB，脚本会在超过 4.1 MB 时直
 - 自动保存受 localStorage 约 5 MB 配额限制
 - Mermaid 以 gzip + base64 内嵌，运行时用 `DecompressionStream` 解压（Chrome 80+ / Safari 16.4+ / Firefox 113+）；不支持时降级显示图表源码
 - 原地读写依赖 File System Access API，Firefox / Safari 降级为导入 + 下载
+- 文件夹工作区只在当前页面会话中有效，刷新后需重新选择；单个文件夹最多扫描 1500 个 Markdown 文件，自动跳过隐藏目录和 `node_modules` / `dist` 等目录
+- 在 Electron（部分桌面内置浏览器）中，系统目录选择器首次使用后可能无法再次打开，第二次切换文件夹会自动降级为兼容导入（只读，保存走另存为 / 下载）
 
 ## Roadmap
 
 - [x] 单文件离线交付、CI、GitHub Pages 自动发布
+- [x] 文件夹工作区：树形浏览、点击切换、原地保存
 - [ ] Milkdown 所见即所得模式
 - [ ] 截图粘贴自动内嵌
-- [ ] 多文档库与全文搜索
+- [ ] 文件夹全文搜索
 - [ ] 导出 Word / EPUB
 
 ## 致谢

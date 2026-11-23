@@ -9,6 +9,7 @@ const LS = {
   name: "mdstudio:name",
   ui: "mdstudio:ui",
   saved: "mdstudio:saved",
+  pickerBlocked: "mdstudio:picker-blocked",
 };
 
 const SAMPLE = `# md·studio
@@ -83,6 +84,14 @@ Markdown 由 John Gruber 在 2004 年创造[^1]，如今已是写作的通用格
 *把这段示例删掉，就可以开始写你自己的东西了。*
 `;
 
+const MD_RE = /\.(md|markdown|mdown)$/i;
+const FOLDER_SKIP = new Set(["node_modules", ".git", ".svn", ".hg", "dist", "build", ".next", ".cache", "vendor", "venv"]);
+const MAX_SCAN_FILES = 1500;
+const MAX_SCAN_DEPTH = 8;
+// Electron 的 showDirectoryPicker 首次使用后常驻 “File picker already active”，
+// 后续切换文件夹改用 webkitdirectory 兼容导入。
+const IS_ELECTRON = /Electron/i.test(navigator.userAgent);
+
 const state = {
   name: "未命名.md",
   handle: null,
@@ -92,6 +101,12 @@ const state = {
   mode: "split",
   theme: "auto",
   tocOpen: true,
+  side: "outline",
+  folder: null,
+  currentPath: null,
+  openDirs: new Set(),
+  pickerBusy: false,
+  folderPickerBlocked: false,
   rawHtml: false,
   fontFamily: "sans",
   fontSize: 17,
@@ -116,6 +131,12 @@ const ui = {
   previewScroll: $("#previewScroll"),
   toc: $("#toc"),
   tocList: $("#tocList"),
+  sideTabs: $("#sideTabs"),
+  sideFiles: $("#sideFiles"),
+  sideOutline: $("#sideOutline"),
+  folderName: $("#folderName"),
+  fileTree: $("#fileTree"),
+  btnRefreshFolder: $("#btnRefreshFolder"),
   docName: $("#docName"),
   dirty: $("#dirty"),
   stPos: $("#stPos"),
@@ -129,6 +150,7 @@ const ui = {
   toast: $("#toast"),
   drop: $("#drop"),
   fileInput: $("#fileInput"),
+  dirInput: $("#dirInput"),
 };
 
 /* ---------- 小工具 ---------- */
@@ -421,6 +443,365 @@ function toggleToc(force, persist = true) {
   if (persist) saveUi();
 }
 
+function setSidePanel(name) {
+  state.side = name === "files" ? "files" : "outline";
+  $$("button[data-side]", ui.sideTabs).forEach((b) => {
+    const on = b.dataset.side === state.side;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  ui.sideFiles.hidden = state.side !== "files";
+  ui.sideOutline.hidden = state.side !== "outline";
+  if (state.side === "outline") syncTocActive();
+}
+
+/* ---------- 文件夹与文件树 ---------- */
+const ICON_FOLDER =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+const ICON_FILE =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>';
+
+function canDiscard() {
+  if (!state.dirty) return true;
+  return window.confirm(`《${state.name}》有未保存的修改。\n\n继续切换会丢失这些修改。`);
+}
+
+function updateDocTitle() {
+  ui.docName.title =
+    state.currentPath && state.folder ? `${state.folder.name}/${state.currentPath}` : "点击重命名";
+}
+
+function countFiles(nodes) {
+  let n = 0;
+  for (const node of nodes) n += node.kind === "file" ? 1 : countFiles(node.children);
+  return n;
+}
+
+function sortNodes(nodes) {
+  nodes.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
+    return a.name.localeCompare(b.name, "zh-CN", { numeric: true, sensitivity: "base" });
+  });
+  for (const n of nodes) {
+    if (n.kind === "dir") {
+      sortNodes(n.children);
+      n.count = countFiles(n.children);
+    }
+  }
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    if (nodes[i].kind === "dir" && !nodes[i].count) nodes.splice(i, 1);
+  }
+  return nodes;
+}
+
+function flattenFiles(nodes, out = []) {
+  for (const node of nodes) {
+    if (node.kind === "file") out.push(node);
+    else flattenFiles(node.children, out);
+  }
+  return out;
+}
+
+async function scanDirNode(handle, name, path, depth, budget) {
+  const node = { kind: "dir", name, path, children: [], count: 0 };
+  try {
+    for await (const child of handle.values()) {
+      if (budget.count >= MAX_SCAN_FILES) {
+        budget.truncated = true;
+        break;
+      }
+      const childName = child.name || "";
+      if (!childName || childName.startsWith(".")) continue;
+      if (child.kind === "directory") {
+        if (depth >= MAX_SCAN_DEPTH || FOLDER_SKIP.has(childName.toLowerCase())) continue;
+        const childPath = path ? `${path}/${childName}` : childName;
+        node.children.push(await scanDirNode(child, childName, childPath, depth + 1, budget));
+      } else if (child.kind === "file" && MD_RE.test(childName)) {
+        budget.count++;
+        node.children.push({
+          kind: "file",
+          name: childName,
+          path: path ? `${path}/${childName}` : childName,
+          handle: child,
+          file: null,
+        });
+      }
+    }
+  } catch (e) {
+    if (depth === 0) budget.fatal = true;
+    console.warn("扫描文件夹失败", path || name, e);
+  }
+  sortNodes(node.children);
+  node.count = countFiles(node.children);
+  return node;
+}
+
+async function scanDirectory(handle) {
+  const budget = { count: 0, truncated: false, fatal: false };
+  const root = await scanDirNode(handle, handle.name, "", 0, budget);
+  return { root, count: budget.count, truncated: budget.truncated, fatal: budget.fatal };
+}
+
+function treeFromFiles(files) {
+  const first = files.find((f) => f.webkitRelativePath);
+  const parts0 = first ? first.webkitRelativePath.split("/").filter(Boolean) : [];
+  const rootName = parts0.length > 1 ? parts0[0] : "拖入的文件";
+  const root = { kind: "dir", name: rootName, path: "", children: [] };
+  const dirs = new Map();
+  let count = 0;
+  let truncated = false;
+  for (const file of files) {
+    if (!MD_RE.test(file.name)) continue;
+    let rel = file.webkitRelativePath || file.name;
+    if (parts0.length > 1 && rel.startsWith(rootName + "/")) rel = rel.slice(rootName.length + 1);
+    const parts = rel.split("/").filter(Boolean);
+    if (!parts.length) continue;
+    if (parts.some((p) => p.startsWith(".") || FOLDER_SKIP.has(p.toLowerCase()))) continue;
+    if (count >= MAX_SCAN_FILES) {
+      truncated = true;
+      break;
+    }
+    count++;
+    let cur = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const p = parts.slice(0, i + 1).join("/");
+      let dir = dirs.get(p);
+      if (!dir) {
+        dir = { kind: "dir", name: parts[i], path: p, children: [], count: 0 };
+        dirs.set(p, dir);
+        cur.children.push(dir);
+      }
+      cur = dir;
+    }
+    cur.children.push({
+      kind: "file",
+      name: parts[parts.length - 1],
+      path: parts.join("/"),
+      handle: null,
+      file,
+    });
+  }
+  sortNodes(root.children);
+  root.count = countFiles(root.children);
+  return { root, count: root.count, truncated };
+}
+
+async function loadDirectoryHandle(handle, opts = {}) {
+  if (!opts.silent) toast("正在扫描文件夹…", 3000);
+  let scan;
+  try {
+    scan = await scanDirectory(handle);
+  } catch (e) {
+    console.error(e);
+    toast("无法读取这个文件夹");
+    return;
+  }
+  if (scan.fatal) {
+    toast("无法读取这个文件夹，请重新授权");
+    return;
+  }
+  applyFolder({ name: handle.name, handle, tree: scan.root, truncated: scan.truncated }, opts);
+  if (!opts.silent) {
+    setSidePanel("files");
+    toggleToc(true);
+  }
+}
+
+function loadFileList(files, opts = {}) {
+  const built = treeFromFiles([...files]);
+  if (!built.count) {
+    toast("没有找到 Markdown 文件");
+    return;
+  }
+  applyFolder({ name: built.root.name, handle: null, tree: built.root, truncated: built.truncated }, opts);
+  setSidePanel("files");
+  toggleToc(true);
+}
+
+function importFolder() {
+  // 兼容模式：直接走 webkitdirectory 文件输入，不依赖可能被占用的目录选择器
+  ui.dirInput.value = "";
+  ui.dirInput.click();
+}
+
+function updateFolderTitles() {
+  const compat =
+    !window.showDirectoryPicker || state.folderPickerBlocked || (IS_ELECTRON && !!state.folder);
+  const title = compat
+    ? state.folder
+      ? "切换文件夹（兼容导入）"
+      : "打开文件夹（兼容导入）"
+    : "打开文件夹 (Ctrl+Shift+O)";
+  $("#btnFolder").title = title;
+  $("#btnOpenFolder").title = title;
+}
+
+function setPickerBlocked() {
+  state.folderPickerBlocked = true;
+  try {
+    sessionStorage.setItem(LS.pickerBlocked, "1");
+  } catch {}
+  updateFolderTitles();
+}
+
+async function openFolder() {
+  if (!window.showDirectoryPicker || state.folderPickerBlocked || (IS_ELECTRON && state.folder)) {
+    importFolder();
+    return;
+  }
+  if (state.pickerBusy) return;
+  state.pickerBusy = true;
+  try {
+    const handle = await window.showDirectoryPicker({ id: "md-studio-folder", mode: "readwrite" });
+    await loadDirectoryHandle(handle);
+  } catch (e) {
+    if (e?.name === "AbortError") return;
+    console.warn("目录选择器不可用", e);
+    // 浏览器（尤其 Electron）在目录选择器被占用后不会释放，后续调用会一直失败
+    setPickerBlocked();
+    toast(
+      e?.name === "NotAllowedError"
+        ? "目录选择器被占用，再点一次文件夹按钮将改用兼容导入"
+        : "目录选择器不可用，再点一次文件夹按钮将改用兼容导入",
+      3200,
+    );
+  } finally {
+    state.pickerBusy = false;
+  }
+}
+
+async function refreshFolder() {
+  const folder = state.folder;
+  if (!folder) {
+    openFolder();
+    return;
+  }
+  if (!folder.handle) {
+    renderTree();
+    toast("这份文件列表来自本次选择，无法自动刷新");
+    return;
+  }
+  await loadDirectoryHandle(folder.handle, { silent: true });
+  toast("文件列表已刷新");
+}
+
+async function openTreeFile(path) {
+  const folder = state.folder;
+  const node = folder?.byPath?.get(path);
+  if (!node) {
+    toast("文件不存在，请刷新文件列表");
+    return false;
+  }
+  if (state.currentPath === path) {
+    editor?.focus();
+    return true;
+  }
+  if (!canDiscard()) return false;
+  let file = node.file;
+  if (node.handle) {
+    try {
+      file = await node.handle.getFile();
+    } catch (e) {
+      console.warn("读取文件失败", e);
+      toast(`无法读取 ${node.name}`);
+      return false;
+    }
+  }
+  if (!file) {
+    toast(`无法读取 ${node.name}`);
+    return false;
+  }
+  return loadFile(file, node.handle, { path });
+}
+
+function clearTreeActive() {
+  if (!state.currentPath) return;
+  state.currentPath = null;
+  updateDocTitle();
+  updateTreeActive();
+}
+
+function applyFolder(folder, opts = {}) {
+  const same = state.folder?.handle && state.folder.handle === folder.handle;
+  const files = flattenFiles(folder.tree.children);
+  folder.files = files;
+  folder.byPath = new Map(files.map((f) => [f.path, f]));
+  state.folder = folder;
+  if (!same) {
+    state.currentPath = null;
+    state.openDirs.clear();
+  }
+  if (state.currentPath && !folder.byPath.has(state.currentPath)) state.currentPath = null;
+  ui.folderName.textContent = folder.name || "未打开文件夹";
+  ui.folderName.title = folder.handle ? `文件夹：${folder.name}` : folder.name;
+  ui.folderName.classList.add("has-folder");
+  ui.btnRefreshFolder.hidden = !folder.handle;
+  updateFolderTitles();
+  renderTree();
+  updateTreeActive();
+  if (!opts.silent) {
+    const n = files.length;
+    toast(n ? `已载入 ${folder.name} · ${n} 个 Markdown 文件` : "这个文件夹里没有找到 Markdown 文件", 2600);
+  }
+}
+
+function renderTree() {
+  const folder = state.folder;
+  if (!folder) {
+    ui.fileTree.innerHTML =
+      '<div class="tree-empty"><p>打开文件夹后，这里会列出所有 Markdown 文件，点击即可切换。</p><button class="tree-cta" type="button" data-act="pick-folder">打开文件夹</button></div>';
+    return;
+  }
+  if (!folder.files.length) {
+    ui.fileTree.innerHTML =
+      '<div class="tree-empty"><p>没有找到 Markdown 文件。<br>支持 .md / .markdown / .mdown。</p><button class="tree-cta" type="button" data-act="pick-folder">换一个文件夹</button></div>';
+    return;
+  }
+  const note = folder.truncated ? `<div class="tree-note">文件较多，仅显示前 ${MAX_SCAN_FILES} 个</div>` : "";
+  ui.fileTree.innerHTML = treeRows(folder.tree.children) + note;
+}
+
+function treeRows(nodes) {
+  return nodes.map((node) => (node.kind === "dir" ? dirRow(node) : fileRow(node))).join("");
+}
+
+function dirRow(node) {
+  const open = state.openDirs.has(node.path) ? " open" : "";
+  const count = node.count ? `<span class="tree-count">${node.count}</span>` : "";
+  return `<details class="tree-dir" data-path="${escapeHtml(node.path)}"${open}>
+    <summary class="tree-row dir" title="${escapeHtml(node.path)}">
+      <span class="tree-caret">▸</span>
+      <span class="tree-icon">${ICON_FOLDER}</span>
+      <span class="tree-name">${escapeHtml(node.name)}</span>${count}
+    </summary>
+    <div class="tree-children">${treeRows(node.children)}</div>
+  </details>`;
+}
+
+function fileRow(node) {
+  const active = state.currentPath === node.path ? " active" : "";
+  return `<button type="button" class="tree-row file${active}" data-path="${escapeHtml(node.path)}" title="${escapeHtml(node.path)}">
+    <span class="tree-caret"></span>
+    <span class="tree-icon">${ICON_FILE}</span>
+    <span class="tree-name">${escapeHtml(node.name)}</span>
+  </button>`;
+}
+
+function updateTreeActive(scroll = false) {
+  const rows = $$(".tree-row.file", ui.fileTree);
+  rows.forEach((row) => row.classList.toggle("active", !!state.currentPath && row.dataset.path === state.currentPath));
+  if (!state.currentPath) return;
+  const active = rows.find((row) => row.dataset.path === state.currentPath);
+  if (!active) return;
+  let dir = active.parentElement?.closest("details.tree-dir");
+  while (dir) {
+    dir.open = true;
+    if (dir.dataset.path) state.openDirs.add(dir.dataset.path);
+    dir = dir.parentElement?.closest("details.tree-dir");
+  }
+  if (scroll) active.scrollIntoView({ block: "nearest" });
+}
+
 /* ---------- 文件 ---------- */
 function persistDoc(text) {
   try {
@@ -435,6 +816,7 @@ function afterSave(text, name) {
   state.lastSaved = text;
   if (name) state.name = name;
   ui.docName.textContent = state.name;
+  updateDocTitle();
   localStorage.setItem(LS.name, state.name);
   persistDoc(text);
   setDirty(false);
@@ -449,6 +831,7 @@ async function writeHandle(handle, text) {
 }
 
 async function openFile() {
+  if (!canDiscard()) return;
   if (window.showOpenFilePicker) {
     try {
       const [handle] = await window.showOpenFilePicker({
@@ -467,26 +850,32 @@ async function openFile() {
   ui.fileInput.click();
 }
 
-async function loadFile(file, handle = null) {
+async function loadFile(file, handle = null, opts = {}) {
   if (file.size > 20 * 1024 * 1024) {
     toast("文件超过 20 MB，已拒绝打开");
-    return;
+    return false;
   }
   const text = await file.text();
   state.handle = handle;
   state.lastModified = file.lastModified || 0;
   state.lastSaved = text;
   state.name = file.name || "未命名.md";
+  state.currentPath = opts.path || null;
   ui.docName.textContent = state.name;
+  updateDocTitle();
   localStorage.setItem(LS.name, state.name);
   persistDoc(text);
   editor.setDoc(text);
   editor.focus();
+  ui.previewScroll.scrollTop = 0;
+  ui.stPos.textContent = "行 1, 列 1";
   renderNow();
   updateStats();
   setDirty(false);
   ui.stSave.textContent = "已打开";
-  toast(`已打开 ${state.name}`);
+  updateTreeActive(true);
+  toast(`已打开 ${state.currentPath || state.name}`);
+  return true;
 }
 
 async function save() {
@@ -524,6 +913,7 @@ async function saveAs(text = editor.getDoc()) {
       await writeHandle(handle, text);
       state.handle = handle;
       try { state.lastModified = (await handle.getFile()).lastModified || Date.now(); } catch {}
+      clearTreeActive();
       afterSave(text, handle.name);
       return;
     } catch (e) {
@@ -532,6 +922,7 @@ async function saveAs(text = editor.getDoc()) {
     }
   }
   download(text, state.name, "text/markdown;charset=utf-8");
+  clearTreeActive();
   afterSave(text, state.name);
 }
 
@@ -625,7 +1016,38 @@ function wireEvents() {
   $("#btnTheme").addEventListener("click", cycleTheme);
   $("#btnToc").addEventListener("click", () => toggleToc());
   $("#tocClose").addEventListener("click", () => toggleToc(false));
+  ui.sideTabs.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-side]");
+    if (b) setSidePanel(b.dataset.side);
+  });
   ui.docName.addEventListener("click", renameDoc);
+
+  $("#btnFolder").addEventListener("click", openFolder);
+  $("#btnOpenFolder").addEventListener("click", openFolder);
+  ui.btnRefreshFolder.addEventListener("click", refreshFolder);
+  ui.fileTree.addEventListener("click", (e) => {
+    const pick = e.target.closest('[data-act="pick-folder"]');
+    if (pick) {
+      openFolder();
+      return;
+    }
+    const row = e.target.closest("button.tree-row.file");
+    if (row?.dataset.path) {
+      openTreeFile(row.dataset.path).then((ok) => {
+        if (ok && matchMedia("(max-width: 980px)").matches) toggleToc(false);
+      });
+    }
+  });
+  ui.fileTree.addEventListener(
+    "toggle",
+    (e) => {
+      const dir = e.target;
+      if (!(dir instanceof HTMLDetailsElement) || !dir.classList.contains("tree-dir")) return;
+      if (dir.open) state.openDirs.add(dir.dataset.path);
+      else state.openDirs.delete(dir.dataset.path);
+    },
+    true,
+  );
 
   ui.tocList.addEventListener("click", (e) => {
     const a = e.target.closest("a[data-h]");
@@ -658,7 +1080,7 @@ function wireEvents() {
     if (!b) return;
     const act = b.dataset.act;
     ui.menu.open = false;
-    ({ open: openFile, save, saveAs: () => saveAs(), exportMd: exportMarkdown, exportHtml, print: printDoc })[act]?.();
+    ({ open: openFile, openFolder, importFolder, save, saveAs: () => saveAs(), exportMd: exportMarkdown, exportHtml, print: printDoc })[act]?.();
   });
   document.addEventListener("click", (e) => {
     if (ui.menu.open && !ui.menu.contains(e.target)) ui.menu.open = false;
@@ -667,6 +1089,12 @@ function wireEvents() {
   ui.fileInput.addEventListener("change", () => {
     const f = ui.fileInput.files?.[0];
     if (f) loadFile(f);
+  });
+
+  ui.dirInput.addEventListener("change", () => {
+    const files = [...(ui.dirInput.files || [])];
+    ui.dirInput.value = "";
+    if (files.length) loadFileList(files);
   });
 
   $("#fontSeg").addEventListener("click", (e) => {
@@ -707,12 +1135,45 @@ function wireEvents() {
     dragDepth = Math.max(0, dragDepth - 1);
     if (!dragDepth) ui.drop.hidden = true;
   });
-  window.addEventListener("drop", (e) => {
+  window.addEventListener("drop", async (e) => {
     e.preventDefault();
     dragDepth = 0;
     ui.drop.hidden = true;
-    const f = e.dataTransfer.files?.[0];
-    if (f) loadFile(f);
+    const dt = e.dataTransfer;
+    if (!dt) return;
+
+    // Chromium：优先把拖入的文件夹当成工作区打开
+    const items = [...(dt.items || [])];
+    const files = [...(dt.files || [])];
+    const handleTasks = items.map((it) =>
+      it.kind === "file" && it.getAsFileSystemHandle
+        ? it.getAsFileSystemHandle().catch(() => null)
+        : Promise.resolve(null),
+    );
+    const handles = (await Promise.all(handleTasks)).filter(Boolean);
+    const dirHandle = handles.find((h) => h.kind === "directory");
+    if (dirHandle) {
+      await loadDirectoryHandle(dirHandle);
+      return;
+    }
+    if (files.length > 1) {
+      loadFileList(files);
+      return;
+    }
+    const fileHandle = handles.find((h) => h.kind === "file");
+    if (fileHandle) {
+      if (!canDiscard()) return;
+      try {
+        await loadFile(await fileHandle.getFile(), fileHandle);
+      } catch (err) {
+        console.warn("无法读取拖入的文件", err);
+      }
+      return;
+    }
+
+    if (!files.length) return;
+    if (!canDiscard()) return;
+    await loadFile(files[0]);
   });
 
   // 分栏拖拽
@@ -746,6 +1207,7 @@ function wireEvents() {
     if (!mod) return;
     const k = e.key.toLowerCase();
     if (k === "s") { e.preventDefault(); save(); }
+    else if (k === "o" && e.shiftKey) { e.preventDefault(); openFolder(); }
     else if (k === "o") { e.preventDefault(); openFile(); }
     else if (k === "f" && state.mode !== "read") { e.preventDefault(); editor.openSearch(); }
     else if (k === "l" && e.shiftKey) { e.preventDefault(); cycleTheme(); }
@@ -794,6 +1256,9 @@ function init() {
   const initial = stored === null ? SAMPLE : stored;
   state.name = localStorage.getItem(LS.name) || "未命名.md";
   state.lastSaved = initial;
+  try {
+    state.folderPickerBlocked = sessionStorage.getItem(LS.pickerBlocked) === "1";
+  } catch {}
 
   ui.docName.textContent = state.name;
   $("#rawHtml").checked = state.rawHtml;
@@ -808,6 +1273,10 @@ function init() {
   if (matchMedia("(max-width: 980px)").matches) state.tocOpen = false;
   setMode(state.mode, false);
   toggleToc(state.tocOpen, false);
+  setSidePanel("outline");
+  renderTree();
+  updateFolderTitles();
+  updateDocTitle();
 
   editor = createEditor($("#cmHost"), {
     doc: initial,

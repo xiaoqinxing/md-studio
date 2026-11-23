@@ -44,67 +44,66 @@ const theme = EditorView.theme(
 );
 
 export function createEditor(host, { doc, onChange, onCursor, onScroll, onSave, onToggleMode }) {
+  const extensions = [
+    lineNumbers(),
+    highlightActiveLineGutter(),
+    highlightActiveLine(),
+    drawSelection(),
+    history(),
+    bracketMatching(),
+    EditorView.lineWrapping,
+    EditorView.contentAttributes.of({ spellcheck: "false", "aria-label": "Markdown 源码" }),
+    markdown({ base: markdownLanguage, codeLanguages: [] }),
+    syntaxHighlighting(highlight),
+    search({ top: true }),
+    highlightSelectionMatches(),
+    placeholder("在这里开始写作，或把 .md 文件拖进窗口…"),
+    keymap.of([
+      {
+        key: "Mod-s",
+        preventDefault: true,
+        run: () => { onSave?.(); return true; },
+      },
+      {
+        key: "Mod-b",
+        run: (v) => wrap(v, "**", "**", "粗体"),
+      },
+      {
+        key: "Mod-i",
+        run: (v) => wrap(v, "_", "_", "斜体"),
+      },
+      {
+        key: "Mod-k",
+        run: (v) => wrap(v, "[", "](url)", "链接文字"),
+      },
+      {
+        key: "Mod-e",
+        run: (v) => wrap(v, "`", "`", "code"),
+      },
+      {
+        key: "Mod-Enter",
+        preventDefault: true,
+        run: () => { onToggleMode?.(); return true; },
+      },
+      indentWithTab,
+      ...searchKeymap,
+      ...defaultKeymap,
+      ...historyKeymap,
+    ]),
+    EditorView.updateListener.of((u) => {
+      if (u.docChanged) onChange?.(u.state.doc.toString());
+      if (u.selectionSet || u.docChanged) {
+        const head = u.state.selection.main.head;
+        const line = u.state.doc.lineAt(head);
+        onCursor?.({ line: line.number, col: head - line.from + 1 });
+      }
+    }),
+    theme,
+  ];
+  const makeState = (text) => EditorState.create({ doc: text, extensions });
   const view = new EditorView({
     parent: host,
-    state: EditorState.create({
-      doc,
-      extensions: [
-        lineNumbers(),
-        highlightActiveLineGutter(),
-        highlightActiveLine(),
-        drawSelection(),
-        history(),
-        bracketMatching(),
-        EditorView.lineWrapping,
-        EditorView.contentAttributes.of({ spellcheck: "false", "aria-label": "Markdown 源码" }),
-        markdown({ base: markdownLanguage, codeLanguages: [] }),
-        syntaxHighlighting(highlight),
-        search({ top: true }),
-        highlightSelectionMatches(),
-        placeholder("在这里开始写作，或把 .md 文件拖进窗口…"),
-        keymap.of([
-          {
-            key: "Mod-s",
-            preventDefault: true,
-            run: () => { onSave?.(); return true; },
-          },
-          {
-            key: "Mod-b",
-            run: (v) => wrap(v, "**", "**", "粗体"),
-          },
-          {
-            key: "Mod-i",
-            run: (v) => wrap(v, "_", "_", "斜体"),
-          },
-          {
-            key: "Mod-k",
-            run: (v) => wrap(v, "[", "](url)", "链接文字"),
-          },
-          {
-            key: "Mod-e",
-            run: (v) => wrap(v, "`", "`", "code"),
-          },
-          {
-            key: "Mod-Enter",
-            preventDefault: true,
-            run: () => { onToggleMode?.(); return true; },
-          },
-          indentWithTab,
-          ...searchKeymap,
-          ...defaultKeymap,
-          ...historyKeymap,
-        ]),
-        EditorView.updateListener.of((u) => {
-          if (u.docChanged) onChange?.(u.state.doc.toString());
-          if (u.selectionSet || u.docChanged) {
-            const head = u.state.selection.main.head;
-            const line = u.state.doc.lineAt(head);
-            onCursor?.({ line: line.number, col: head - line.from + 1 });
-          }
-        }),
-        theme,
-      ],
-    }),
+    state: makeState(doc),
   });
 
   view.scrollDOM.addEventListener("scroll", () => onScroll?.(ratio(view)), { passive: true });
@@ -112,8 +111,9 @@ export function createEditor(host, { doc, onChange, onCursor, onScroll, onSave, 
   return {
     view,
     getDoc: () => view.state.doc.toString(),
+    // 重建状态以清空上一个文件的撤销历史，避免跨文件 undo
     setDoc(text) {
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
+      view.setState(makeState(text));
     },
     focus: () => view.focus(),
     openSearch: () => openSearchPanel(view),
